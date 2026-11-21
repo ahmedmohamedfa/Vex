@@ -44,6 +44,8 @@ private val Accent = Color(0xFF72E0C1)
 private val Muted = Color(0xFF9AA8C4)
 private val Ink = Color(0xFFEAF0FF)
 
+private data class EditorTab(val uri: Uri?, val name: String, val content: String, val dirty: Boolean = false)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +64,8 @@ private fun VexApp(context: Context) {
     val redoHistory = remember { mutableStateListOf<String>() }
     var code by remember { mutableStateOf("// Welcome to Vex\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
     var fileName by remember { mutableStateOf("Untitled.kt") }
+    val openTabs = remember { mutableStateListOf(EditorTab(null, "Untitled.kt", code)) }
+    var activeTabIndex by remember { mutableIntStateOf(0) }
     var projectRoot by remember {
         mutableStateOf(prefs.getString("project_tree_uri", null)?.let { saved ->
             runCatching { DocumentFile.fromTreeUri(context, Uri.parse(saved)) }.getOrNull()
@@ -86,11 +90,31 @@ private fun VexApp(context: Context) {
     var apiKey by remember { mutableStateOf(activeSavedProvider?.apiKey ?: (prefs.getString("key", "") ?: "")) }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(code, fileName, currentFileUri, activeTabIndex) {
+        if (activeTabIndex in openTabs.indices) {
+            val active = openTabs[activeTabIndex]
+            if (active.content != code || active.name != fileName || active.uri != currentFileUri) {
+                openTabs[activeTabIndex] = active.copy(
+                    uri = currentFileUri,
+                    name = fileName,
+                    content = code,
+                    dirty = active.dirty || active.content != code
+                )
+            }
+        }
+    }
+
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let {
             runCatching {
                 context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> code = reader.readText() }
                 fileName = it.lastPathSegment?.substringAfterLast('/') ?: "project-file"
+                currentFileUri = it
+                val existing = openTabs.indexOfFirst { tab -> tab.uri == it }
+                if (existing >= 0) activeTabIndex = existing else {
+                    openTabs.add(EditorTab(it, fileName, code))
+                    activeTabIndex = openTabs.lastIndex
+                }
             }.onFailure { answer = "Could not open file: ${it.message}" }
         }
     }
@@ -147,7 +171,16 @@ private fun VexApp(context: Context) {
                     IconButton(onClick = { showFind = true }) { Icon(Icons.Default.Search, "Find and replace", tint = Ink) }
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Ink) }
                     IconButton(onClick = { openProject.launch(null) }) { Icon(Icons.Default.FolderOpen, "Open project", tint = Ink) }
-                    IconButton(onClick = { saveFile.launch(fileName) }) { Icon(Icons.Default.Save, "Save", tint = Accent) }
+                    IconButton(onClick = {
+                        val target = currentFileUri
+                        if (target == null) saveFile.launch(fileName)
+                        else runCatching {
+                            context.contentResolver.openOutputStream(target, "wt")?.bufferedWriter()?.use { it.write(code) }
+                                ?: error("Unable to write file")
+                            if (activeTabIndex in openTabs.indices) openTabs[activeTabIndex] = openTabs[activeTabIndex].copy(content = code, dirty = false)
+                            answer = "Saved $fileName"
+                        }.onFailure { answer = "Save failed: \${it.message}" }
+                    }) { Icon(Icons.Default.Save, "Save", tint = Accent) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Bg)
             )
@@ -174,12 +207,32 @@ private fun VexApp(context: Context) {
             }
         }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp)) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = Panel2, shape = RoundedCornerShape(8.dp)) {
-                        Text(fileName, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Ink, fontSize = 12.sp)
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    openTabs.forEachIndexed { index, tab ->
+                        Surface(
+                            color = if (index == activeTabIndex) Panel2 else Panel,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.clickable {
+                                activeTabIndex = index
+                                code = tab.content
+                                fileName = tab.name
+                                currentFileUri = tab.uri
+                                selectedTab = 0
+                            }
+                        ) {
+                            Text(
+                                tab.name + if (tab.dirty) " •" else "",
+                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                color = if (index == activeTabIndex) Accent else Ink,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
-                    Spacer(Modifier.weight(1f))
-                    Text("${code.length} chars", color = Muted, fontSize = 11.sp)
+                    Spacer(Modifier.width(2.dp))
+                    Text("\${code.length} chars", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
                 }
                 when (selectedTab) {
                     0 -> {
@@ -338,6 +391,8 @@ private fun VexApp(context: Context) {
                                 code = ""
                                 fileName = created.name ?: newFileName.trim()
                                 currentFileUri = created.uri
+                                openTabs.add(EditorTab(created.uri, fileName, ""))
+                                activeTabIndex = openTabs.lastIndex
                                 answer = "Created $fileName"
                                 showCreateFile = false
                                 selectedTab = 0
