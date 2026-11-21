@@ -2,6 +2,7 @@ package com.nexcode.ai
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -59,6 +60,11 @@ private fun VexApp(context: Context) {
     val activeSavedProvider = remember { savedProviders.lastOrNull() }
     var code by remember { mutableStateOf("// Welcome to Vex\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
     var fileName by remember { mutableStateOf("Untitled.kt") }
+    var projectRoot by remember { mutableStateOf<DocumentFile?>(null) }
+    var currentFolder by remember { mutableStateOf<DocumentFile?>(null) }
+    var currentFileUri by remember { mutableStateOf<Uri?>(null) }
+    var showCreateFile by remember { mutableStateOf(false) }
+    var newFileName by remember { mutableStateOf("NewFile.kt") }
     var prompt by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("Your Vex AI coding partner is ready. Configure a provider in Settings to enable live AI.") }
     var aiSuggestedCode by remember { mutableStateOf("") }
@@ -79,6 +85,21 @@ private fun VexApp(context: Context) {
                 context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> code = reader.readText() }
                 fileName = it.lastPathSegment?.substringAfterLast('/') ?: "project-file"
             }.onFailure { answer = "Could not open file: ${it.message}" }
+        }
+    }
+    val openProject = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                val root = DocumentFile.fromTreeUri(context, it) ?: error("Cannot access selected folder")
+                projectRoot = root
+                currentFolder = root
+                currentFileUri = null
+                answer = "Project folder opened: ${root.name ?: "Workspace"}"
+            }.onFailure { answer = "Could not open project folder: ${it.message}" }
         }
     }
     val saveFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri: Uri? ->
@@ -105,7 +126,7 @@ private fun VexApp(context: Context) {
                 actions = {
                     IconButton(onClick = { showFind = true }) { Icon(Icons.Default.Search, "Find and replace", tint = Ink) }
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Ink) }
-                    IconButton(onClick = { openFile.launch(arrayOf("*/*")) }) { Icon(Icons.Default.FolderOpen, "Open", tint = Ink) }
+                    IconButton(onClick = { openProject.launch(null) }) { Icon(Icons.Default.FolderOpen, "Open project", tint = Ink) }
                     IconButton(onClick = { saveFile.launch(fileName) }) { Icon(Icons.Default.Save, "Save", tint = Accent) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Bg)
@@ -157,26 +178,35 @@ private fun VexApp(context: Context) {
                     }
                     }
                     1 -> {
-                        Text("PROJECT WORKSPACE", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Icon(Icons.Default.FolderOpen, null, tint = Accent, modifier = Modifier.size(32.dp))
-                                Text(fileName, color = Ink, fontSize = 18.sp)
-                                Text("Current document • ${code.lines().size} lines • ${code.length} characters", color = Muted, fontSize = 12.sp)
-                                Button(onClick = { openFile.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
-                                    Icon(Icons.Default.FolderOpen, null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Open a file")
-                                }
-                                OutlinedButton(onClick = { saveFile.launch(fileName) }, modifier = Modifier.fillMaxWidth()) {
-                                    Icon(Icons.Default.Save, null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Save current file")
-                                }
-                                Text("Multi-file project tree and terminal are planned next. This build currently edits one document at a time.", color = Muted, fontSize = 11.sp)
-                            }
-                        }
+                        ProjectExplorer(
+                            root = projectRoot,
+                            currentFolder = currentFolder,
+                            onPickProject = { openProject.launch(null) },
+                            onFolderSelected = { currentFolder = it },
+                            onFileSelected = { file ->
+                                runCatching {
+                                    val content = context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
+                                        ?: error("Unable to read file")
+                                    code = content
+                                    fileName = file.name ?: "project-file"
+                                    currentFileUri = file.uri
+                                    selectedTab = 0
+                                    answer = "Opened ${file.name}"
+                                }.onFailure { answer = "Could not open ${file.name}: ${it.message}" }
+                            },
+                            onCreateFile = { showCreateFile = true },
+                            onSaveCurrent = {
+                                val target = currentFileUri
+                                if (target == null) saveFile.launch(fileName)
+                                else runCatching {
+                                    context.contentResolver.openOutputStream(target, "wt")?.bufferedWriter()?.use { it.write(code) }
+                                        ?: error("Unable to write file")
+                                    answer = "Saved $fileName"
+                                }.onFailure { answer = "Save failed: ${it.message}" }
+                            },
+                            fileName = fileName,
+                            code = code
+                        )
                     }
                     2 -> {
                     Row(
@@ -241,6 +271,40 @@ private fun VexApp(context: Context) {
                 }
                 Text("Vex 0.2.0  •  Local-first editor  •  Multi-provider AI", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
+        }
+
+        if (showCreateFile) {
+            AlertDialog(
+                onDismissRequest = { showCreateFile = false },
+                containerColor = Panel,
+                title = { Text("Create project file", color = Ink) },
+                text = {
+                    OutlinedTextField(
+                        value = newFileName,
+                        onValueChange = { newFileName = it },
+                        label = { Text("File name") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = newFileName.isNotBlank() && !newFileName.contains("/") && currentFolder != null,
+                        onClick = {
+                            runCatching {
+                                val created = currentFolder?.createFile("application/octet-stream", newFileName.trim())
+                                    ?: error("Select a project folder first")
+                                code = ""
+                                fileName = created.name ?: newFileName.trim()
+                                currentFileUri = created.uri
+                                answer = "Created $fileName"
+                                showCreateFile = false
+                                selectedTab = 0
+                            }.onFailure { answer = "Could not create file: ${it.message}" }
+                        }
+                    ) { Text("Create", color = Accent) }
+                },
+                dismissButton = { TextButton(onClick = { showCreateFile = false }) { Text("Cancel") } }
+            )
         }
 
         if (showFind) {
