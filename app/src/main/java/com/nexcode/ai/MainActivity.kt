@@ -406,7 +406,7 @@ private fun VexApp(context: Context) {
                     }
                     }
                 }
-                Text("Vex 0.2.0  •  Local-first editor  •  Multi-provider AI", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
+                Text("Vex 0.3.0  •  Project workspace  •  Multi-provider AI", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
         }
 
