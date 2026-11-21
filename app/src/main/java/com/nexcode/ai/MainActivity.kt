@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -313,6 +314,18 @@ private fun VexApp(context: Context) {
                                 runCatching {
                                     val content = context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
                                         ?: error("Unable to read file")
+                                    val existing = openTabs.indexOfFirst { tab -> tab.uri == file.uri }
+                                    if (existing >= 0) {
+                                        openTabs[existing] = openTabs[existing].copy(
+                                            name = file.name ?: "project-file",
+                                            content = content,
+                                            dirty = false
+                                        )
+                                        activeTabIndex = existing
+                                    } else {
+                                        openTabs.add(EditorTab(file.uri, file.name ?: "project-file", content))
+                                        activeTabIndex = openTabs.lastIndex
+                                    }
                                     code = content
                                     fileName = file.name ?: "project-file"
                                     currentFileUri = file.uri
