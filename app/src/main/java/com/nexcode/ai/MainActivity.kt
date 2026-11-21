@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -186,15 +187,24 @@ private fun VexApp(context: Context) {
                         Text("OpenAI-compatible API", color = Muted, fontSize = 12.sp)
                         OutlinedTextField(endpoint, { endpoint = it }, label = { Text("Chat Completions URL") }, singleLine = true)
                         OutlinedTextField(model, { model = it }, label = { Text("Model name") }, singleLine = true)
-                        OutlinedTextField(apiKey, { apiKey = it }, label = { Text("API key") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+                        OutlinedTextField(apiKey, { apiKey = it }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                         Text("Use a provider you trust. API usage may cost money. Your key is stored locally in app preferences; do not share your APK with a personal key embedded.", color = Muted, fontSize = 10.sp)
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        prefs.edit().putString("endpoint", endpoint.trim()).putString("model", model.trim()).putString("key", apiKey.trim()).apply()
-                        showSettings = false
-                        answer = "AI settings saved on this device."
+                        val normalizedEndpoint = endpoint.trim()
+                        val validEndpoint = runCatching {
+                            val parsed = URL(normalizedEndpoint)
+                            parsed.protocol == "https" && parsed.host.isNotBlank()
+                        }.getOrDefault(false)
+                        if (!validEndpoint || model.isBlank() || apiKey.isBlank()) {
+                            answer = "Please enter a valid HTTPS endpoint, model name, and API key."
+                        } else {
+                            prefs.edit().putString("endpoint", normalizedEndpoint).putString("model", model.trim()).putString("key", apiKey.trim()).apply()
+                            showSettings = false
+                            answer = "AI settings saved on this device's app-private preferences."
+                        }
                     }) { Text("Save settings", color = Accent) }
                 },
                 dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Cancel", color = Muted) } }
@@ -205,7 +215,10 @@ private fun VexApp(context: Context) {
 
 private suspend fun askAi(endpoint: String, model: String, key: String, prompt: String, code: String): String =
     withContext(Dispatchers.IO) {
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+        val parsedEndpoint = URL(endpoint)
+        require(parsedEndpoint.protocol == "https") { "Only HTTPS AI endpoints are allowed." }
+        require(model.isNotBlank() && key.isNotBlank()) { "Model name and API key are required." }
+        val connection = (parsedEndpoint.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 20000
             readTimeout = 60000
@@ -221,11 +234,19 @@ private suspend fun askAi(endpoint: String, model: String, key: String, prompt: 
                     .put(JSONObject().put("role", "user").put("content", "Request: $prompt\n\nCurrent code:\n$code")))
                 .put("temperature", 0.2)
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-            val response = stream.bufferedReader().use { it.readText() }
-            if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}: $response")
-            JSONObject(response).getJSONArray("choices").getJSONObject(0)
-                .getJSONObject("message").getString("content")
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) {
+                val detail = runCatching {
+                    JSONObject(response).optJSONObject("error")?.optString("message")
+                }.getOrNull()?.takeIf { !it.isNullOrBlank() } ?: response.take(600)
+                error("Provider returned HTTP $status: $detail")
+            }
+            val choices = JSONObject(response).optJSONArray("choices")
+                ?: error("The provider response did not contain a choices array.")
+            if (choices.length() == 0) error("The provider returned no answer.")
+            choices.getJSONObject(0).getJSONObject("message").getString("content")
         } finally {
             connection.disconnect()
         }
