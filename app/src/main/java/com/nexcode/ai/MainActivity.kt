@@ -62,8 +62,12 @@ private fun VexApp(context: Context) {
     val redoHistory = remember { mutableStateListOf<String>() }
     var code by remember { mutableStateOf("// Welcome to Vex\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
     var fileName by remember { mutableStateOf("Untitled.kt") }
-    var projectRoot by remember { mutableStateOf<DocumentFile?>(null) }
-    var currentFolder by remember { mutableStateOf<DocumentFile?>(null) }
+    var projectRoot by remember {
+        mutableStateOf(prefs.getString("project_tree_uri", null)?.let { saved ->
+            runCatching { DocumentFile.fromTreeUri(context, Uri.parse(saved)) }.getOrNull()
+        })
+    }
+    var currentFolder by remember { mutableStateOf(projectRoot) }
     var currentFileUri by remember { mutableStateOf<Uri?>(null) }
     var showCreateFile by remember { mutableStateOf(false) }
     var newFileName by remember { mutableStateOf("NewFile.kt") }
@@ -99,6 +103,7 @@ private fun VexApp(context: Context) {
                 val root = DocumentFile.fromTreeUri(context, it) ?: error("Cannot access selected folder")
                 projectRoot = root
                 currentFolder = root
+                prefs.edit().putString("project_tree_uri", it.toString()).apply()
                 currentFileUri = null
                 answer = "Project folder opened: ${root.name ?: "Workspace"}"
             }.onFailure { answer = "Could not open project folder: ${it.message}" }
