@@ -1,15 +1,18 @@
-# Vex — AI-first Android Code Editor
+# Vex Code — Android Coding Studio
 
-Vex is a local-first Android code editor built with Kotlin and Jetpack Compose. This repository is an actively developed MVP, not yet a full desktop-class IDE.
+Vex Code is an Android-first coding studio built with Kotlin, Jetpack Compose, and the Sora Editor engine. Its UI and project services are native Android; its editor surface is a dedicated native editing component with bundled offline TextMate grammars. It is an actively developed mobile IDE, not a desktop-class IDE.
 
 ## Current features
+
+- Native Sora Editor engine with line numbers, grammar-based syntax highlighting, auto-indent, bracket matching, selection tools, and per-document undo/redo.
+- Bundled offline TextMate grammars for Kotlin, Java, JavaScript, Python, HTML, Markdown, and XML.
 
 - Dark editor interface with a dedicated Editor, Files, and AI navigation.
 - Open and save a document through Android's Storage Access Framework.
 - Open a folder as a project using the Storage Access Framework, browse folders and files, open files, create files, and save edits back to the selected document URI.
 - Multi-document tabs with per-tab unsaved-change indicators and close confirmation before discarding edits.
 - Remember the last selected project folder across app launches when Android retains the granted permission.
-- Editor line-number gutter, lightweight lexical syntax coloring for common languages, and bounded undo/redo history.
+- Native Sora Editor editing surface; the editor owns line numbers, syntax analysis, and undo/redo.
 - Find and replace all occurrences in the current document.
 - Multiple named AI provider profiles.
 - API keys encrypted locally with Android Keystore (AES-GCM).
@@ -17,7 +20,7 @@ Vex is a local-first Android code editor built with Kotlin and Jetpack Compose. 
 - OpenAI-compatible `/models` discovery, connection check, and model selection.
 - Switch providers and models by selecting a saved profile and activating it.
 - AI chat using OpenAI-compatible Chat Completions endpoints.
-- Extract a fenced code block from an AI response and apply it to the current document only after tapping **Apply code**.
+- Extract a fenced code block from an AI response and review it before applying it to the current document.
 - HTTPS-only provider requests and improved HTTP error reporting.
 - GitHub Actions debug APK build.
 
@@ -51,7 +54,7 @@ GitHub Actions builds a debug APK on pushes to `main`/ `master` and pull request
 ## Current limitations
 
 - The Files tab provides a SAF-backed project tree; multi-document tabs preserve in-memory edits until saved or explicitly discarded. Folder and file operations depend on the selected Android document provider.
-- Syntax coloring is lightweight lexical highlighting, not parser-aware highlighting. Multi-tab editing, code folding, language-server support (LSP), autocomplete, and debugging are still pending.
+- TextMate syntax highlighting is grammar-based rather than semantic analysis. Language-server diagnostics, project-wide completion, debugger, terminal, Git tools, and a full build system remain future milestones.
 - AI code application currently replaces the current document with the first fenced code block. Review the response before applying; structured multi-file patches and diff previews are pending. Undo/redo currently tracks editor typing changes.
 - No integrated terminal, Git UI, extension marketplace, cloud sync, account system, or billing yet.
 - Only OpenAI-compatible providers are supported at present; Anthropic, Gemini-native, and other distinct APIs need provider-specific adapters.
