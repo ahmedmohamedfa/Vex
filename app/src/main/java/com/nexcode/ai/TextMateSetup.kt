@@ -35,7 +35,10 @@ internal object VexTextMate {
         initialized = true
     }
 
+    fun isReady(): Boolean = initialized
+
     fun languageFor(fileName: String): Language {
+        if (!initialized) return EmptyLanguage()
         val extension = fileName.substringAfterLast('.', "").lowercase()
         val scope = when (extension) {
             "kt", "kts" -> "source.kotlin"
