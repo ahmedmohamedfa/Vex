@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-${{ github.ref }}
-  cancel-in-progress: true
+  group: vex-android-validation-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
