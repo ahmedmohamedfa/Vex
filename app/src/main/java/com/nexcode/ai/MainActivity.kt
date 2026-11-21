@@ -174,7 +174,7 @@ private fun VexApp(context: Context) {
                                 Modifier.width(42.dp).fillMaxHeight().verticalScroll(editorScroll).padding(top = 14.dp, bottom = 14.dp),
                                 horizontalAlignment = Alignment.End
                             ) {
-                                repeat(maxOf(1, code.count { it == '\\n' } + 1)) { line ->
+                                repeat(maxOf(1, code.count { it == '\n' } + 1)) { line ->
                                     Text(
                                         text = (line + 1).toString(),
                                         color = Muted,
