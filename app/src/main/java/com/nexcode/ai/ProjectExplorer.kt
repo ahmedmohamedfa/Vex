@@ -12,11 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -74,10 +73,10 @@ internal fun ProjectExplorer(
                 ) { Icon(Icons.Default.ArrowBack, "Parent folder", tint = ExplorerInk) }
                 Text(currentFolder.name ?: "Project", color = ExplorerInk, fontSize = 13.sp, maxLines = 1)
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onCreateFile) { Icon(Icons.Default.CreateNewFolder, "Create file", tint = ExplorerAccent) }
+                IconButton(onClick = onCreateFile) { Icon(Icons.Default.NoteAdd, "Create file", tint = ExplorerAccent) }
             }
             Surface(color = ExplorerPanel, modifier = Modifier.weight(1f, fill = false).fillMaxWidth()) {
-                val entries = currentFolder.listFiles().sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name?.lowercase().orEmpty() })
+                val entries = runCatching { currentFolder.listFiles().toList() }.getOrDefault(emptyList()).sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name?.lowercase().orEmpty() })
                 if (entries.isEmpty()) {
                     Text("This folder is empty.", color = ExplorerMuted, modifier = Modifier.padding(16.dp), fontSize = 12.sp)
                 } else {
