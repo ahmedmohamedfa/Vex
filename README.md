@@ -6,6 +6,9 @@ Vex is a local-first Android code editor built with Kotlin and Jetpack Compose. 
 
 - Dark editor interface with a dedicated Editor, Files, and AI navigation.
 - Open and save a document through Android's Storage Access Framework.
+- Open a folder as a project using the Storage Access Framework, browse folders and files, open files, create files, and save edits back to the selected document URI.
+- Remember the last selected project folder across app launches when Android retains the granted permission.
+- Editor line-number gutter, lightweight lexical syntax coloring for common languages, and bounded undo/redo history.
 - Find and replace all occurrences in the current document.
 - Multiple named AI provider profiles.
 - API keys encrypted locally with Android Keystore (AES-GCM).
@@ -46,9 +49,9 @@ GitHub Actions builds a debug APK on pushes to `main`/ `master` and pull request
 
 ## Current limitations
 
-- The Files tab currently opens and edits one document at a time; a persistent multi-file project tree is not implemented yet.
-- The editor is a lightweight text editor, not yet a full code-editor engine: syntax highlighting, line numbers, tabs, code folding, LSP, autocomplete, and debugger are pending.
-- AI code application currently replaces the current document with the first fenced code block. Review the response before applying; diff-based patching and undo history are pending.
+- The Files tab provides a SAF-backed project tree and one active editor document. It is not yet a full multi-tab workspace; folder and file operations depend on the selected Android document provider.
+- Syntax coloring is lightweight lexical highlighting, not parser-aware highlighting. Multi-tab editing, code folding, language-server support (LSP), autocomplete, and debugging are still pending.
+- AI code application currently replaces the current document with the first fenced code block. Review the response before applying; structured multi-file patches and diff previews are pending. Undo/redo currently tracks editor typing changes.
 - No integrated terminal, Git UI, extension marketplace, cloud sync, account system, or billing yet.
 - Only OpenAI-compatible providers are supported at present; Anthropic, Gemini-native, and other distinct APIs need provider-specific adapters.
 
