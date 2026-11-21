@@ -239,7 +239,7 @@ private fun VexApp(context: Context) {
                     }
                     }
                 }
-                Text("MVP 0.1.0  •  Local-first editor  •  AI provider configurable", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
+                Text("Vex 0.2.0  •  Local-first editor  •  Multi-provider AI", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
         }
 
