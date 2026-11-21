@@ -216,6 +216,7 @@ private fun VexApp(context: Context) {
                                 },
                                 modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 12.dp, top = 14.dp, bottom = 14.dp).verticalScroll(editorScroll),
                                 textStyle = TextStyle(color = Color(0xFFD7E3FF), fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp),
+                                visualTransformation = CodeSyntaxTransformation(),
                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent)
                             )
                         }
