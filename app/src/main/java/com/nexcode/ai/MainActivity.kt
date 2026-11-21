@@ -164,17 +164,35 @@ private fun VexApp(context: Context) {
                 when (selectedTab) {
                     0 -> {
                     Text("EDITOR", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                    val editorScroll = rememberScrollState()
                     Surface(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         color = Panel, shape = RoundedCornerShape(12.dp)
                     ) {
-                        BasicTextField(
-                            value = code,
-                            onValueChange = { code = it },
-                            modifier = Modifier.fillMaxSize().padding(14.dp).verticalScroll(rememberScrollState()),
-                            textStyle = TextStyle(color = Color(0xFFD7E3FF), fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent)
-                        )
+                        Row(Modifier.fillMaxSize()) {
+                            Column(
+                                Modifier.width(42.dp).fillMaxHeight().verticalScroll(editorScroll).padding(top = 14.dp, bottom = 14.dp),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                repeat(maxOf(1, code.count { it == '\\n' } + 1)) { line ->
+                                    Text(
+                                        text = (line + 1).toString(),
+                                        color = Muted,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                        lineHeight = 20.sp,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                }
+                            }
+                            BasicTextField(
+                                value = code,
+                                onValueChange = { code = it },
+                                modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 12.dp, top = 14.dp, bottom = 14.dp).verticalScroll(editorScroll),
+                                textStyle = TextStyle(color = Color(0xFFD7E3FF), fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent)
+                            )
+                        }
                     }
                     }
                     1 -> {
