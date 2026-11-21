@@ -58,6 +58,8 @@ private fun VexApp(context: Context) {
     val providerStore = remember { AiProviderStore(context) }
     val savedProviders = remember { providerStore.load() }
     val activeSavedProvider = remember { savedProviders.lastOrNull() }
+    val undoHistory = remember { mutableStateListOf<String>() }
+    val redoHistory = remember { mutableStateListOf<String>() }
     var code by remember { mutableStateOf("// Welcome to Vex\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
     var fileName by remember { mutableStateOf("Untitled.kt") }
     var projectRoot by remember { mutableStateOf<DocumentFile?>(null) }
@@ -124,6 +126,18 @@ private fun VexApp(context: Context) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        if (undoHistory.isNotEmpty()) {
+                            redoHistory.add(code)
+                            code = undoHistory.removeAt(undoHistory.lastIndex)
+                        }
+                    }, enabled = undoHistory.isNotEmpty()) { Icon(Icons.Default.Undo, "Undo", tint = Ink) }
+                    IconButton(onClick = {
+                        if (redoHistory.isNotEmpty()) {
+                            undoHistory.add(code)
+                            code = redoHistory.removeAt(redoHistory.lastIndex)
+                        }
+                    }, enabled = redoHistory.isNotEmpty()) { Icon(Icons.Default.Redo, "Redo", tint = Ink) }
                     IconButton(onClick = { showFind = true }) { Icon(Icons.Default.Search, "Find and replace", tint = Ink) }
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Ink) }
                     IconButton(onClick = { openProject.launch(null) }) { Icon(Icons.Default.FolderOpen, "Open project", tint = Ink) }
@@ -187,7 +201,14 @@ private fun VexApp(context: Context) {
                             }
                             BasicTextField(
                                 value = code,
-                                onValueChange = { code = it },
+                                onValueChange = { updated ->
+                                    if (updated != code) {
+                                        undoHistory.add(code)
+                                        if (undoHistory.size > 60) undoHistory.removeAt(0)
+                                        redoHistory.clear()
+                                        code = updated
+                                    }
+                                },
                                 modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 12.dp, top = 14.dp, bottom = 14.dp).verticalScroll(editorScroll),
                                 textStyle = TextStyle(color = Color(0xFFD7E3FF), fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp),
                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent)
