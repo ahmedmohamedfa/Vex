@@ -10,12 +10,12 @@ Vex is an Android-first coding studio. The project is being developed in verifia
 
 ## Milestone 1 — Editor reliability
 - Add editor state and document lifecycle handling
-- Add line numbers, selection actions, find/replace, undo and redo
+- Integrate Sora Editor with native line numbers, TextMate syntax grammars, selection actions, search, undo/redo and auto-indent
 - Add safe handling for large files and unsaved changes
-- Add focused unit tests for editor logic
+- Add focused unit and Android device tests for editor lifecycle, keyboard input, save/restore and large documents
 
 ## Milestone 2 — Project workspace
-- Multi-file project tree
+- Improve SAF project tree operations and recent-workspace recovery
 - Create, rename, move and delete files with confirmation
 - Persist workspace permissions and recent projects
 - Tabs and split-pane mobile navigation
