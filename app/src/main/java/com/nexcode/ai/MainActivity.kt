@@ -107,7 +107,8 @@ private fun VexApp(context: Context) {
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let {
             runCatching {
-                context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> code = reader.readText() }
+                code = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() }
+                    ?: error("Unable to read selected document")
                 fileName = it.lastPathSegment?.substringAfterLast('/') ?: "project-file"
                 currentFileUri = it
                 val existing = openTabs.indexOfFirst { tab -> tab.uri == it }
@@ -141,6 +142,9 @@ private fun VexApp(context: Context) {
         uri?.let {
             runCatching {
                 context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer -> writer.write(code) }
+                    ?: error("Unable to write selected document")
+                currentFileUri = it
+                if (activeTabIndex in openTabs.indices) openTabs[activeTabIndex] = openTabs[activeTabIndex].copy(uri = it, name = fileName, content = code, dirty = false)
                 answer = "Saved $fileName successfully."
             }.onFailure { answer = "Could not save file: ${it.message}" }
         }
@@ -220,6 +224,8 @@ private fun VexApp(context: Context) {
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.clickable {
                                 activeTabIndex = index
+                                undoHistory.clear()
+                                redoHistory.clear()
                                 code = tab.content
                                 fileName = tab.name
                                 currentFileUri = tab.uri
@@ -235,7 +241,7 @@ private fun VexApp(context: Context) {
                         }
                     }
                     Spacer(Modifier.width(2.dp))
-                    Text("\${code.length} chars", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text("${code.length} chars", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
                 }
                 when (selectedTab) {
                     0 -> {
