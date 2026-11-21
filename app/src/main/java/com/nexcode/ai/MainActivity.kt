@@ -60,6 +60,9 @@ private fun VexApp(context: Context) {
     var answer by remember { mutableStateOf("Your Vex AI coding partner is ready. Add an API endpoint, model, and key in Settings to enable live AI.") }
     var busy by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showFind by remember { mutableStateOf(false) }
+    var findText by remember { mutableStateOf("") }
+    var replaceText by remember { mutableStateOf("") }
     var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://api.openai.com/v1/chat/completions") ?: "") }
     var model by remember { mutableStateOf(prefs.getString("model", "gpt-4o-mini") ?: "") }
     var apiKey by remember { mutableStateOf(prefs.getString("key", "") ?: "") }
@@ -95,6 +98,7 @@ private fun VexApp(context: Context) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showFind = true }) { Icon(Icons.Default.Search, "Find and replace", tint = Ink) }
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Ink) }
                     IconButton(onClick = { openFile.launch(arrayOf("*/*")) }) { Icon(Icons.Default.FolderOpen, "Open", tint = Ink) }
                     IconButton(onClick = { saveFile.launch(fileName) }) { Icon(Icons.Default.Save, "Save", tint = Accent) }
@@ -175,6 +179,49 @@ private fun VexApp(context: Context) {
                 }
                 Text("MVP 0.1.0  •  Local-first editor  •  AI provider configurable", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
+        }
+
+        if (showFind) {
+            AlertDialog(
+                onDismissRequest = { showFind = false },
+                containerColor = Panel,
+                title = { Text("Find and replace", color = Ink) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = findText,
+                            onValueChange = { findText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Find") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = replaceText,
+                            onValueChange = { replaceText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Replace with") },
+                            singleLine = true
+                        )
+                        val matches = if (findText.isEmpty()) 0 else code.windowed(findText.length).count { it == findText }
+                        Text("$matches match(es) in the current file", color = Muted, fontSize = 11.sp)
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = findText.isNotEmpty() && code.contains(findText),
+                        onClick = {
+                            val updated = code.replace(findText, replaceText)
+                            val count = (code.length - updated.length) / findText.length
+                            code = updated
+                            answer = "Replaced $count occurrence(s)."
+                            showFind = false
+                        }
+                    ) { Text("Replace all", color = Accent) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showFind = false }) { Text("Close", color = Muted) }
+                }
+            )
         }
 
         if (showSettings) {
