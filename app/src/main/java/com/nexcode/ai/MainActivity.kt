@@ -111,7 +111,10 @@ private fun VexApp(context: Context) {
                 fileName = it.lastPathSegment?.substringAfterLast('/') ?: "project-file"
                 currentFileUri = it
                 val existing = openTabs.indexOfFirst { tab -> tab.uri == it }
-                if (existing >= 0) activeTabIndex = existing else {
+                if (existing >= 0) {
+                    openTabs[existing] = openTabs[existing].copy(name = fileName, content = code, dirty = false)
+                    activeTabIndex = existing
+                } else {
                     openTabs.add(EditorTab(it, fileName, code))
                     activeTabIndex = openTabs.lastIndex
                 }
