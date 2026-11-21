@@ -62,6 +62,7 @@ private fun VexApp(context: Context) {
     var prompt by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("Your Vex AI coding partner is ready. Add an API endpoint, model, and key in Settings to enable live AI.") }
     var busy by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
     var findText by remember { mutableStateOf("") }
@@ -108,6 +109,27 @@ private fun VexApp(context: Context) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Bg)
             )
+        }, bottomBar = {
+            NavigationBar(containerColor = Panel) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.Code, contentDescription = "Editor") },
+                    label = { Text("Editor") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.Default.Folder, contentDescription = "Files") },
+                    label = { Text("Files") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "AI") },
+                    label = { Text("AI") }
+                )
+            }
         }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -117,67 +139,95 @@ private fun VexApp(context: Context) {
                     Spacer(Modifier.weight(1f))
                     Text("${code.length} chars", color = Muted, fontSize = 11.sp)
                 }
-                Text("EDITOR", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
-                Surface(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    color = Panel, shape = RoundedCornerShape(12.dp)
-                ) {
-                    BasicTextField(
-                        value = code,
-                        onValueChange = { code = it },
-                        modifier = Modifier.fillMaxSize().padding(14.dp).verticalScroll(rememberScrollState()),
-                        textStyle = TextStyle(color = Color(0xFFD7E3FF), fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp),
-                        cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent)
-                    )
-                }
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = Accent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("AI ASSISTANT", color = Accent, fontSize = 11.sp, letterSpacing = 1.5.sp)
-                    Spacer(Modifier.weight(1f))
-                    if (busy) CircularProgressIndicator(Modifier.size(16.dp), color = Accent, strokeWidth = 2.dp)
-                }
-                Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(answer, color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.heightIn(max = 90.dp).verticalScroll(rememberScrollState()))
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = prompt, onValueChange = { prompt = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Ask AI to explain, fix, or improve this code…", fontSize = 12.sp) },
-                            minLines = 1, maxLines = 3,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Ink, unfocusedTextColor = Ink,
-                                focusedBorderColor = Accent, unfocusedBorderColor = Panel2,
-                                cursorColor = Accent
-                            )
+                when (selectedTab) {
+                    0 -> {
+                    Text("EDITOR", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        color = Panel, shape = RoundedCornerShape(12.dp)
+                    ) {
+                        BasicTextField(
+                            value = code,
+                            onValueChange = { code = it },
+                            modifier = Modifier.fillMaxSize().padding(14.dp).verticalScroll(rememberScrollState()),
+                            textStyle = TextStyle(color = Color(0xFFD7E3FF), fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent)
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Button(
-                                enabled = !busy && prompt.isNotBlank(),
-                                onClick = {
-                                    if (apiKey.isBlank()) {
-                                        answer = "AI is not configured yet. Open Settings and add your compatible API endpoint, model, and API key."
-                                    } else {
-                                        busy = true
-                                        val question = prompt
-                                        scope.launch {
-                                            answer = runCatching { askAi(endpoint, model, apiKey, question, code) }
-                                                .getOrElse { "AI request failed: ${it.message}" }
-                                            busy = false
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
-                            ) {
-                                Icon(Icons.Default.Send, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Ask AI")
+                    }
+                    }
+                    1 -> {
+                        Text("PROJECT WORKSPACE", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Icon(Icons.Default.FolderOpen, null, tint = Accent, modifier = Modifier.size(32.dp))
+                                Text(fileName, color = Ink, fontSize = 18.sp)
+                                Text("Current document • ${code.lines().size} lines • ${code.length} characters", color = Muted, fontSize = 12.sp)
+                                Button(onClick = { openFile.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.FolderOpen, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Open a file")
+                                }
+                                OutlinedButton(onClick = { saveFile.launch(fileName) }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Save, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Save current file")
+                                }
+                                Text("Multi-file project tree and terminal are planned next. This build currently edits one document at a time.", color = Muted, fontSize = 11.sp)
                             }
                         }
+                    }
+                    2 -> {
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, null, tint = Accent, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("AI ASSISTANT", color = Accent, fontSize = 11.sp, letterSpacing = 1.5.sp)
+                        Spacer(Modifier.weight(1f))
+                        if (busy) CircularProgressIndicator(Modifier.size(16.dp), color = Accent, strokeWidth = 2.dp)
+                    }
+                    Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(answer, color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.heightIn(max = 90.dp).verticalScroll(rememberScrollState()))
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = prompt, onValueChange = { prompt = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Ask AI to explain, fix, or improve this code…", fontSize = 12.sp) },
+                                minLines = 1, maxLines = 3,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Ink, unfocusedTextColor = Ink,
+                                    focusedBorderColor = Accent, unfocusedBorderColor = Panel2,
+                                    cursorColor = Accent
+                                )
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                Button(
+                                    enabled = !busy && prompt.isNotBlank(),
+                                    onClick = {
+                                        if (apiKey.isBlank()) {
+                                            answer = "AI is not configured yet. Open Settings and add your compatible API endpoint, model, and API key."
+                                        } else {
+                                            busy = true
+                                            val question = prompt
+                                            scope.launch {
+                                                answer = runCatching { askAi(endpoint, model, apiKey, question, code) }
+                                                    .getOrElse { "AI request failed: ${it.message}" }
+                                                busy = false
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+                                ) {
+                                    Icon(Icons.Default.Send, null, Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Ask AI")
+                                }
+                            }
+                        }
+                    }
                     }
                 }
                 Text("MVP 0.1.0  •  Local-first editor  •  AI provider configurable", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
