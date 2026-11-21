@@ -78,6 +78,7 @@ private fun VexApp(context: Context) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
+    var showApplyPreview by remember { mutableStateOf(false) }
     var findText by remember { mutableStateOf("") }
     var replaceText by remember { mutableStateOf("") }
     var endpoint by remember { mutableStateOf(activeSavedProvider?.endpoint ?: (prefs.getString("endpoint", "https://api.openai.com/v1/chat/completions") ?: "")) }
@@ -303,11 +304,7 @@ private fun VexApp(context: Context) {
                                     Text("Ask AI")
                                 }
                                 if (aiSuggestedCode.isNotBlank()) {
-                                    OutlinedButton(onClick = {
-                                        code = aiSuggestedCode
-                                        aiSuggestedCode = ""
-                                        answer = "AI-generated code was applied to the current document."
-                                    }) { Text("Apply code") }
+                                    OutlinedButton(onClick = { showApplyPreview = true }) { Text("Review code") }
                                 }
                             }
                         }
@@ -349,6 +346,42 @@ private fun VexApp(context: Context) {
                     ) { Text("Create", color = Accent) }
                 },
                 dismissButton = { TextButton(onClick = { showCreateFile = false }) { Text("Cancel") } }
+            )
+        }
+
+        if (showApplyPreview) {
+            AlertDialog(
+                onDismissRequest = { showApplyPreview = false },
+                containerColor = Panel,
+                title = { Text("Review AI code before applying", color = Ink) },
+                text = {
+                    Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                        Text(
+                            aiSuggestedCode.take(12000),
+                            color = Color(0xFFD7E3FF),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                        if (aiSuggestedCode.length > 12000) {
+                            Text("Preview truncated. The full response will be applied.", color = Muted, fontSize = 10.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        undoHistory.add(code)
+                        if (undoHistory.size > 60) undoHistory.removeAt(0)
+                        redoHistory.clear()
+                        code = aiSuggestedCode
+                        aiSuggestedCode = ""
+                        showApplyPreview = false
+                        answer = "Reviewed AI code was applied to the current document. Use Undo to revert."
+                    }) { Text("Apply to current file", color = Accent) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showApplyPreview = false }) { Text("Cancel", color = Muted) }
+                }
             )
         }
 
