@@ -187,7 +187,7 @@ internal fun AiProviderSettingsDialog(
     val store = remember { AiProviderStore(context) }
     val scope = rememberCoroutineScope()
     var profiles by remember { mutableStateOf(store.load()) }
-    var selectedId by remember { mutableStateOf(profiles.firstOrNull()?.id.orEmpty()) }
+    var selectedId by remember { mutableStateOf(profiles.lastOrNull()?.id.orEmpty()) }
     var name by remember { mutableStateOf("My AI Provider") }
     var endpoint by remember { mutableStateOf(initialEndpoint) }
     var model by remember { mutableStateOf(initialModel) }
@@ -235,6 +235,19 @@ internal fun AiProviderSettingsDialog(
                         apiKey = ""
                         models = emptyList()
                     }) { Text("New") }
+                    if (selectedId.isNotBlank()) {
+                        TextButton(onClick = {
+                            profiles = profiles.filterNot { it.id == selectedId }
+                            store.save(profiles)
+                            selectedId = profiles.lastOrNull()?.id.orEmpty()
+                            if (selectedId.isBlank()) {
+                                name = "New Provider"
+                                endpoint = "https://api.openai.com/v1/chat/completions"
+                                model = ""
+                                apiKey = ""
+                            }
+                        }) { Text("Delete") }
+                    }
                 }
                 OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Provider name") }, singleLine = true)
                 OutlinedTextField(endpoint, { endpoint = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Chat Completions URL (HTTPS)") }, singleLine = true)
