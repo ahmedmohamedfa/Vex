@@ -7,9 +7,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.rosemoe.sora.event.ContentChangeEvent
+import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.subscribeAlways
 
 /** Native Sora editor integrated with the Compose document and tab state. */
@@ -35,8 +37,13 @@ internal fun VexCodeEditor(
                 setLineNumberEnabled(true)
                 setWordwrap(false)
                 setUndoEnabled(true)
-                setColorScheme(TextMateColorScheme.create(ThemeRegistry.getInstance()))
-                setEditorLanguage(VexTextMate.languageFor(fileName))
+                if (VexTextMate.isReady()) {
+                    setColorScheme(TextMateColorScheme.create(ThemeRegistry.getInstance()))
+                    setEditorLanguage(VexTextMate.languageFor(fileName))
+                } else {
+                    setColorScheme(EditorColorScheme())
+                    setEditorLanguage(EmptyLanguage())
+                }
                 tag = languageKey
 
                 subscribeAlways<ContentChangeEvent> {
