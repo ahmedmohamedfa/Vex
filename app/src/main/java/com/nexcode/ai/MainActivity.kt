@@ -300,6 +300,7 @@ private fun VexApp(context: Context) {
                                 else runCatching {
                                     context.contentResolver.openOutputStream(target, "wt")?.bufferedWriter()?.use { it.write(code) }
                                         ?: error("Unable to write file")
+                                    if (activeTabIndex in openTabs.indices) openTabs[activeTabIndex] = openTabs[activeTabIndex].copy(content = code, dirty = false)
                                     answer = "Saved $fileName"
                                 }.onFailure { answer = "Save failed: ${it.message}" }
                             },
