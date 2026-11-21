@@ -15,8 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -24,12 +22,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,6 +46,8 @@ private data class EditorTab(val uri: Uri?, val name: String, val content: Strin
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        runCatching { VexTextMate.initialize(applicationContext) }
+            .onFailure { android.util.Log.e("VexCode", "TextMate setup failed", it) }
         setContent { VexApp(this) }
     }
 }
@@ -60,9 +59,8 @@ private fun VexApp(context: Context) {
     val providerStore = remember { AiProviderStore(context) }
     val savedProviders = remember { providerStore.load() }
     val activeSavedProvider = remember { savedProviders.lastOrNull() }
-    val undoHistory = remember { mutableStateListOf<String>() }
-    val redoHistory = remember { mutableStateListOf<String>() }
-    var code by remember { mutableStateOf("// Welcome to Vex\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
+    var soraEditor by remember { mutableStateOf<CodeEditor?>(null) }
+    var code by remember { mutableStateOf("// Welcome to Vex Code\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
     var fileName by remember { mutableStateOf("Untitled.kt") }
     val openTabs = remember { mutableStateListOf(EditorTab(null, "Untitled.kt", code)) }
     var activeTabIndex by remember { mutableIntStateOf(0) }
@@ -101,8 +99,6 @@ private fun VexApp(context: Context) {
             fileName = "Untitled.kt"
             code = ""
             currentFileUri = null
-            undoHistory.clear()
-            redoHistory.clear()
         } else if (wasActive) {
             val next = (index - 1).coerceAtLeast(0)
             activeTabIndex = next
@@ -183,24 +179,26 @@ private fun VexApp(context: Context) {
         Scaffold(containerColor = Bg, topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("VEX", color = Ink, fontSize = 18.sp)
-                        Text("AI DEVELOPMENT STUDIO", color = Accent, fontSize = 9.sp, letterSpacing = 2.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_vex_foreground),
+                            contentDescription = "Vex Code logo",
+                            modifier = Modifier.size(38.dp)
+                        )
+                        Spacer(Modifier.width(9.dp))
+                        Column {
+                            Text("VEX CODE", color = Ink, fontSize = 17.sp, letterSpacing = 1.2.sp)
+                            Text("ANDROID CODING STUDIO", color = Accent, fontSize = 8.sp, letterSpacing = 1.5.sp)
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        if (undoHistory.isNotEmpty()) {
-                            redoHistory.add(code)
-                            code = undoHistory.removeAt(undoHistory.lastIndex)
-                        }
-                    }, enabled = undoHistory.isNotEmpty()) { Icon(Icons.Default.Undo, "Undo", tint = Ink) }
-                    IconButton(onClick = {
-                        if (redoHistory.isNotEmpty()) {
-                            undoHistory.add(code)
-                            code = redoHistory.removeAt(redoHistory.lastIndex)
-                        }
-                    }, enabled = redoHistory.isNotEmpty()) { Icon(Icons.Default.Redo, "Redo", tint = Ink) }
+                    IconButton(onClick = { soraEditor?.undo() }, enabled = soraEditor?.canUndo() == true) {
+                        Icon(Icons.Default.Undo, "Undo", tint = Ink)
+                    }
+                    IconButton(onClick = { soraEditor?.redo() }, enabled = soraEditor?.canRedo() == true) {
+                        Icon(Icons.Default.Redo, "Redo", tint = Ink)
+                    }
                     IconButton(onClick = { showFind = true }) { Icon(Icons.Default.Search, "Find and replace", tint = Ink) }
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Ink) }
                     IconButton(onClick = { openProject.launch(null) }) { Icon(Icons.Default.FolderOpen, "Open project", tint = Ink) }
@@ -254,8 +252,6 @@ private fun VexApp(context: Context) {
                                     tab.name + if (tab.dirty) " •" else "",
                                     Modifier.clickable {
                                         activeTabIndex = index
-                                        undoHistory.clear()
-                                        redoHistory.clear()
                                         code = tab.content
                                         fileName = tab.name
                                         currentFileUri = tab.uri
@@ -277,45 +273,35 @@ private fun VexApp(context: Context) {
                 }
                 when (selectedTab) {
                     0 -> {
-                    Text("EDITOR", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
-                    val editorScroll = rememberScrollState()
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        color = Panel, shape = RoundedCornerShape(12.dp)
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(Modifier.fillMaxSize()) {
-                            Column(
-                                Modifier.width(42.dp).fillMaxHeight().verticalScroll(editorScroll).padding(top = 14.dp, bottom = 14.dp),
-                                horizontalAlignment = Alignment.End
-                            ) {
-                                repeat(maxOf(1, code.count { it == '\n' } + 1)) { line ->
-                                    Text(
-                                        text = (line + 1).toString(),
-                                        color = Muted,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        lineHeight = 20.sp,
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                }
-                            }
-                            BasicTextField(
-                                value = code,
-                                onValueChange = { updated ->
-                                    if (updated != code) {
-                                        undoHistory.add(code)
-                                        if (undoHistory.size > 60) undoHistory.removeAt(0)
-                                        redoHistory.clear()
-                                        code = updated
-                                    }
-                                },
-                                modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 12.dp, top = 14.dp, bottom = 14.dp).verticalScroll(editorScroll),
-                                textStyle = TextStyle(color = Color(0xFFD7E3FF), fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp),
-                                visualTransformation = CodeSyntaxTransformation(),
-                                cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent)
+                        Icon(Icons.Default.Code, null, tint = Accent, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(fileName, color = Ink, fontSize = 12.sp, maxLines = 1)
+                        Spacer(Modifier.weight(1f))
+                        Surface(color = Panel2, shape = RoundedCornerShape(6.dp)) {
+                            Text(
+                                VexTextMate.languageLabel(fileName),
+                                Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                color = Accent,
+                                fontSize = 10.sp
                             )
                         }
                     }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        color = Panel,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        VexCodeEditor(
+                            value = code,
+                            fileName = fileName,
+                            onValueChange = { updated -> code = updated },
+                            onEditorReady = { soraEditor = it },
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                     1 -> {
                         ProjectExplorer(
@@ -406,7 +392,7 @@ private fun VexApp(context: Context) {
                     }
                     }
                 }
-                Text("Vex 0.3.0  •  Project workspace  •  Multi-provider AI", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
+                Text("Vex Code 0.4.0  •  Native editor  •  Offline language grammars", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
         }
 
@@ -484,13 +470,10 @@ private fun VexApp(context: Context) {
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        undoHistory.add(code)
-                        if (undoHistory.size > 60) undoHistory.removeAt(0)
-                        redoHistory.clear()
                         code = aiSuggestedCode
                         aiSuggestedCode = ""
                         showApplyPreview = false
-                        answer = "Reviewed AI code was applied to the current document. Use Undo to revert."
+                        answer = "Reviewed AI code was applied to the current document. The editor undo history is managed by the native editor."
                     }) { Text("Apply to current file", color = Accent) }
                 },
                 dismissButton = {
