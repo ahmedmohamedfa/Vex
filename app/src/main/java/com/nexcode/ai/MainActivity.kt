@@ -54,6 +54,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun VexApp(context: Context) {
     val prefs = remember { context.getSharedPreferences("vex_settings", Context.MODE_PRIVATE) }
+    val providerStore = remember { AiProviderStore(context) }
+    val savedProviders = remember { providerStore.load() }
+    val activeSavedProvider = remember { savedProviders.lastOrNull() }
     var code by remember { mutableStateOf("// Welcome to Vex\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
     var fileName by remember { mutableStateOf("Untitled.kt") }
     var prompt by remember { mutableStateOf("") }
@@ -63,9 +66,9 @@ private fun VexApp(context: Context) {
     var showFind by remember { mutableStateOf(false) }
     var findText by remember { mutableStateOf("") }
     var replaceText by remember { mutableStateOf("") }
-    var endpoint by remember { mutableStateOf(prefs.getString("endpoint", "https://api.openai.com/v1/chat/completions") ?: "") }
-    var model by remember { mutableStateOf(prefs.getString("model", "gpt-4o-mini") ?: "") }
-    var apiKey by remember { mutableStateOf(prefs.getString("key", "") ?: "") }
+    var endpoint by remember { mutableStateOf(activeSavedProvider?.endpoint ?: (prefs.getString("endpoint", "https://api.openai.com/v1/chat/completions") ?: "")) }
+    var model by remember { mutableStateOf(activeSavedProvider?.model ?: (prefs.getString("model", "gpt-4o-mini") ?: "")) }
+    var apiKey by remember { mutableStateOf(activeSavedProvider?.apiKey ?: (prefs.getString("key", "") ?: "")) }
     val scope = rememberCoroutineScope()
 
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -225,40 +228,29 @@ private fun VexApp(context: Context) {
         }
 
         if (showSettings) {
-            AlertDialog(
-                onDismissRequest = { showSettings = false },
-                containerColor = Panel,
-                title = { Text("AI Provider Settings", color = Ink) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("OpenAI-compatible API", color = Muted, fontSize = 12.sp)
-                        OutlinedTextField(endpoint, { endpoint = it }, label = { Text("Chat Completions URL") }, singleLine = true)
-                        OutlinedTextField(model, { model = it }, label = { Text("Model name") }, singleLine = true)
-                        OutlinedTextField(apiKey, { apiKey = it }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-                        Text("Use a provider you trust. API usage may cost money. Your key is stored locally in app preferences; do not share your APK with a personal key embedded.", color = Muted, fontSize = 10.sp)
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        val normalizedEndpoint = endpoint.trim()
-                        val validEndpoint = runCatching {
-                            val parsed = URL(normalizedEndpoint)
-                            parsed.protocol == "https" && parsed.host.isNotBlank()
-                        }.getOrDefault(false)
-                        if (!validEndpoint || model.isBlank() || apiKey.isBlank()) {
-                            answer = "Please enter a valid HTTPS endpoint, model name, and API key."
-                        } else {
-                            prefs.edit().putString("endpoint", normalizedEndpoint).putString("model", model.trim()).putString("key", apiKey.trim()).apply()
-                            showSettings = false
-                            answer = "AI settings saved on this device's app-private preferences."
-                        }
-                    }) { Text("Save settings", color = Accent) }
-                },
-                dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Cancel", color = Muted) } }
+            AiProviderSettingsDialog(
+                initialEndpoint = endpoint,
+                initialModel = model,
+                initialApiKey = apiKey,
+                onDismiss = { showSettings = false },
+                onStatus = { answer = it },
+                onApply = { profile ->
+                    endpoint = profile.endpoint
+                    model = profile.model
+                    apiKey = profile.apiKey
+                    prefs.edit()
+                        .putString("endpoint", profile.endpoint)
+                        .putString("model", profile.model)
+                        .remove("key")
+                        .apply()
+                    showSettings = false
+                    answer = "Provider '${profile.name}' saved and activated. Its API key is encrypted with Android Keystore."
+                }
             )
         }
     }
 }
+
 
 private suspend fun askAi(endpoint: String, model: String, key: String, prompt: String, code: String): String =
     withContext(Dispatchers.IO) {
