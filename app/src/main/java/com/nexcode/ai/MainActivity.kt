@@ -107,8 +107,6 @@ private fun VexApp(context: Context) {
             fileName = tab.name
             code = tab.content
             currentFileUri = tab.uri
-            undoHistory.clear()
-            redoHistory.clear()
         } else if (index < activeTabIndex) {
             activeTabIndex -= 1
         }
