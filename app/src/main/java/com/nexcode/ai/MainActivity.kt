@@ -186,7 +186,7 @@ private fun VexApp(context: Context) {
                                 ?: error("Unable to write file")
                             if (activeTabIndex in openTabs.indices) openTabs[activeTabIndex] = openTabs[activeTabIndex].copy(content = code, dirty = false)
                             answer = "Saved $fileName"
-                        }.onFailure { answer = "Save failed: \${it.message}" }
+                        }.onFailure { answer = "Save failed: ${it.message}" }
                     }) { Icon(Icons.Default.Save, "Save", tint = Accent) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Bg)
