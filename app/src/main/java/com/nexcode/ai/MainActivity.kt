@@ -60,7 +60,8 @@ private fun VexApp(context: Context) {
     var code by remember { mutableStateOf("// Welcome to Vex\n// Start building something great.\n\nfun main() {\n    println(\"Hello, world!\")\n}\n") }
     var fileName by remember { mutableStateOf("Untitled.kt") }
     var prompt by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf("Your Vex AI coding partner is ready. Add an API endpoint, model, and key in Settings to enable live AI.") }
+    var answer by remember { mutableStateOf("Your Vex AI coding partner is ready. Configure a provider in Settings to enable live AI.") }
+    var aiSuggestedCode by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
@@ -215,6 +216,7 @@ private fun VexApp(context: Context) {
                                             scope.launch {
                                                 answer = runCatching { askAi(endpoint, model, apiKey, question, code) }
                                                     .getOrElse { "AI request failed: ${it.message}" }
+                                                aiSuggestedCode = extractCodeBlock(answer)
                                                 busy = false
                                             }
                                         }
@@ -224,6 +226,13 @@ private fun VexApp(context: Context) {
                                     Icon(Icons.Default.Send, null, Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text("Ask AI")
+                                }
+                                if (aiSuggestedCode.isNotBlank()) {
+                                    OutlinedButton(onClick = {
+                                        code = aiSuggestedCode
+                                        aiSuggestedCode = ""
+                                        answer = "AI-generated code was applied to the current document."
+                                    }) { Text("Apply code") }
                                 }
                             }
                         }
@@ -340,3 +349,13 @@ private suspend fun askAi(endpoint: String, model: String, key: String, prompt: 
             connection.disconnect()
         }
     }
+
+private fun extractCodeBlock(response: String): String {
+    val start = response.indexOf("```")
+    if (start < 0) return ""
+    val contentStart = response.indexOf('\n', start)
+    if (contentStart < 0) return ""
+    val end = response.indexOf("```", contentStart + 1)
+    if (end < 0) return ""
+    return response.substring(contentStart + 1, end).trimEnd()
+}
