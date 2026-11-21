@@ -74,6 +74,7 @@ private fun VexApp(context: Context) {
     var currentFolder by remember { mutableStateOf(projectRoot) }
     var currentFileUri by remember { mutableStateOf<Uri?>(null) }
     var showCreateFile by remember { mutableStateOf(false) }
+    var pendingCloseTab by remember { mutableIntStateOf(-1) }
     var newFileName by remember { mutableStateOf("NewFile.kt") }
     var prompt by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("Your Vex AI coding partner is ready. Configure a provider in Settings to enable live AI.") }
@@ -89,6 +90,32 @@ private fun VexApp(context: Context) {
     var model by remember { mutableStateOf(activeSavedProvider?.model ?: (prefs.getString("model", "gpt-4o-mini") ?: "")) }
     var apiKey by remember { mutableStateOf(activeSavedProvider?.apiKey ?: (prefs.getString("key", "") ?: "")) }
     val scope = rememberCoroutineScope()
+
+    fun closeEditorTab(index: Int) {
+        if (index !in openTabs.indices) return
+        val wasActive = index == activeTabIndex
+        openTabs.removeAt(index)
+        if (openTabs.isEmpty()) {
+            openTabs.add(EditorTab(null, "Untitled.kt", ""))
+            activeTabIndex = 0
+            fileName = "Untitled.kt"
+            code = ""
+            currentFileUri = null
+            undoHistory.clear()
+            redoHistory.clear()
+        } else if (wasActive) {
+            val next = (index - 1).coerceAtLeast(0)
+            activeTabIndex = next
+            val tab = openTabs[next]
+            fileName = tab.name
+            code = tab.content
+            currentFileUri = tab.uri
+            undoHistory.clear()
+            redoHistory.clear()
+        } else if (index < activeTabIndex) {
+            activeTabIndex -= 1
+        }
+    }
 
     LaunchedEffect(code, fileName, currentFileUri, activeTabIndex) {
         if (activeTabIndex in openTabs.indices) {
@@ -133,7 +160,6 @@ private fun VexApp(context: Context) {
                 projectRoot = root
                 currentFolder = root
                 prefs.edit().putString("project_tree_uri", it.toString()).apply()
-                currentFileUri = null
                 answer = "Project folder opened: ${root.name ?: "Workspace"}"
             }.onFailure { answer = "Could not open project folder: ${it.message}" }
         }
@@ -221,23 +247,29 @@ private fun VexApp(context: Context) {
                     openTabs.forEachIndexed { index, tab ->
                         Surface(
                             color = if (index == activeTabIndex) Panel2 else Panel,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.clickable {
-                                activeTabIndex = index
-                                undoHistory.clear()
-                                redoHistory.clear()
-                                code = tab.content
-                                fileName = tab.name
-                                currentFileUri = tab.uri
-                                selectedTab = 0
-                            }
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text(
-                                tab.name + if (tab.dirty) " •" else "",
-                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                color = if (index == activeTabIndex) Accent else Ink,
-                                fontSize = 12.sp
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    tab.name + if (tab.dirty) " •" else "",
+                                    Modifier.clickable {
+                                        activeTabIndex = index
+                                        undoHistory.clear()
+                                        redoHistory.clear()
+                                        code = tab.content
+                                        fileName = tab.name
+                                        currentFileUri = tab.uri
+                                        selectedTab = 0
+                                    }.padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
+                                    color = if (index == activeTabIndex) Accent else Ink,
+                                    fontSize = 12.sp
+                                )
+                                IconButton(
+                                    onClick = { if (tab.dirty) pendingCloseTab = index else closeEditorTab(index) },
+                                    modifier = Modifier.size(30.dp)
+                                ) { Icon(Icons.Default.Close, "Close tab", tint = Muted, modifier = Modifier.size(15.dp)) }
+                                Spacer(Modifier.width(4.dp))
+                            }
                         }
                     }
                     Spacer(Modifier.width(2.dp))
@@ -411,6 +443,23 @@ private fun VexApp(context: Context) {
                     ) { Text("Create", color = Accent) }
                 },
                 dismissButton = { TextButton(onClick = { showCreateFile = false }) { Text("Cancel") } }
+            )
+        }
+
+        if (pendingCloseTab >= 0) {
+            val closingName = openTabs.getOrNull(pendingCloseTab)?.name ?: "document"
+            AlertDialog(
+                onDismissRequest = { pendingCloseTab = -1 },
+                containerColor = Panel,
+                title = { Text("Discard unsaved changes?", color = Ink) },
+                text = { Text("“$closingName” has unsaved edits. Closing it will discard those changes.", color = Muted) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        closeEditorTab(pendingCloseTab)
+                        pendingCloseTab = -1
+                    }) { Text("Discard and close", color = Accent) }
+                },
+                dismissButton = { TextButton(onClick = { pendingCloseTab = -1 }) { Text("Keep editing", color = Muted) } }
             )
         }
 
